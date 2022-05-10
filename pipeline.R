@@ -21,20 +21,20 @@ library(plotrix)
 ##background a mano 
 ##rimuovere non protein coding gene
 ###SETTINGS
-mainDir <- "C:/Users/Angelo/Desktop/presentazione"
+mainDir <- ""
 
-counts_file <- "star.counts" #a csv file of the counts
-sample_file <- "samples.csv" #a csv file containing a sample column and a group column
+counts_file <- "" #a csv file of the counts
+sample_file <- "" #a csv file containing a sample column and a group column
 
-condition_A <- "WTD_20" #choose the conditions you want to contrast
-condition_B <- "WTD_10"
+condition_A <- "" #choose the conditions you want to contrast
+condition_B <- ""
 background <- paste0(condition_A,condition_B,'_background.txt')
 
 foldchangetreshold <- 1
 padjtreshold <- 0.05
 
 ##coding genes from gtf
-GTFfile <- file.path(mainDir,"GRCh38_primary_charmed.86.gtf")
+GTFfile <- file.path(mainDir,"")
 GTF <- import.gff(con=GTFfile , format="gtf", genome="GRCh38.p5", feature.type="exon")
 biotype_table <- elementMetadata(GTF)[ , c("gene_id", "gene_biotype", "gene_name")]
 biotype_table <- as.data.frame(biotype_table)
