@@ -18,9 +18,7 @@ library(GenomicRanges)
 library(rtracklayer)
 library(dplyr)
 library(plotrix)
-##background a mano 
-##rimuovere non protein coding gene
-###SETTINGS
+
 mainDir <- ""
 
 counts_file <- "" #a csv file of the counts
@@ -33,7 +31,7 @@ background <- paste0(condition_A,condition_B,'_background.txt')
 foldchangetreshold <- 1
 padjtreshold <- 0.05
 
-##coding genes from gtf
+##importing coding genes from gtf
 GTFfile <- file.path(mainDir,"")
 GTF <- import.gff(con=GTFfile , format="gtf", genome="GRCh38.p5", feature.type="exon")
 biotype_table <- elementMetadata(GTF)[ , c("gene_id", "gene_biotype", "gene_name")]
@@ -41,7 +39,7 @@ biotype_table <- as.data.frame(biotype_table)
 biotype_table <- unique(biotype_table)
 
 
-#gestione directory
+#directory creation for data output 
 subDir <- paste(condition_A, "vs", condition_B, sep="")
 
 if (dir.exists(file.path(mainDir, subDir)) == FALSE) {
@@ -71,65 +69,17 @@ fpkm <- apply(X = countData,
                 10^9 * x / geneLengths / sum(as.numeric(x))
               })
 
-genecount <- fpkm[rownames(fpkm) == 'CUFF405']
-dotchart(genecount, labels=colnames(fpkm),cex=.7,
-         main="CHARME",
-         xlab="FPKM")
 
-
-WTD20_col <- colData_all[grepl('WTD_20',colData_all[["group"]]),]
-WTD20fpkmmean <- as.data.frame((subset(fpkm, select = c(WTD20_col$sample))))
-average_cond_WTD20_fpkm <- rowMeans(WTD20fpkmmean)
-WTD20 <- as.vector(average_cond_WTD20_fpkm)
-
-WTD10_col <- colData_all[grepl('WTD_10',colData_all[["group"]]),]
-WTD10fpkmmean <- as.data.frame((subset(fpkm, select = c(WTD10_col$sample))))
-average_cond_WTD10_fpkm <- rowMeans(WTD10fpkmmean)
-WTD10 <- as.vector(average_cond_WTD10_fpkm)
-
-HOMOD20_col <- colData_all[grepl('HOMOD_20',colData_all[["group"]]),]
-HOMOD20fpkmmean <- as.data.frame((subset(fpkm, select = c(HOMOD20_col$sample))))
-average_cond_HOMOD20_fpkm <- rowMeans(HOMOD20fpkmmean)
-HOMOD20 <- as.vector(average_cond_HOMOD20_fpkm)
-
-
-HOMOD10_col <- colData_all[grepl('HOMOD_10',colData_all[["group"]]),]
-HOMOD10fpkmmean <- as.data.frame((subset(fpkm, select = c(HOMOD10_col$sample))))
-average_cond_HOMOD10_fpkm <- rowMeans(HOMOD10fpkmmean)
-HOMOD10 <- as.vector(average_cond_HOMOD10_fpkm)
-mediatriplicati_fpkm <- data.frame(WTD10,WTD20,HOMOD10,HOMOD20)
-rownames(mediatriplicati_fpkm) <- rownames(fpkm)
-
-#tbx
-jpeg(file.path( subDir, "barplot_tbx5.jpeg"))  
-barplot(as.matrix(mediatriplicati_fpkm[c('ENSG00000089225'),]),
-        col = '#eb8060',
-        main = "TXB5",
-        xlab = "Condition",
-        ylab = "fpkm",
-        beside = TRUE)
-dev.off()
-
-jpeg(file.path(subDir, "barplot_charme.jpeg")) 
-barplot(as.matrix(mediatriplicati_fpkm[c('CUFF405'),]),
-        col = '#eb8060',
-        xlab = "Condition",
-        ylab = "fpkm",
-        main = "CHARME",
-        beside = TRUE)
-dev.off()
-
-###
-
+#subsetting of data based on condition of interest and addition of column with average expression for future fltering 
 colData <- colData_all[grepl(condition_A,colData_all[["group"]])|grepl(condition_B,colData_all[["group"]]),]
 
-condA_col <- colData_all[grepl(condition_A,colData_all[["group"]]),]
-condAmean <- as.data.frame((subset(countData, select = c(condA_col$sample))))
-average_cond_A <- round(rowMeans(condAmean), digits = 2)
+conditionA_col <- colData_all[grepl(condition_A,colData_all[["group"]]),]
+conditionA_mean <- as.data.frame((subset(countData, select = c(conditionA_col$sample))))
+average_cond_A <- round(rowMeans(conditionA_mean), digits = 2)
 
-condB_col <- colData_all[grepl(condition_B,colData_all[["group"]]),]
-condBmean <- as.data.frame((subset(countData, select = c(condB_col$sample))))
-average_cond_B <- round(rowMeans(condBmean), digits = 2)
+conditionB_col <- colData_all[grepl(condition_B,colData_all[["group"]]),]
+conditionB_mean <- as.data.frame((subset(countData, select = c(conditionB_col$sample))))
+average_cond_B <- round(rowMeans(conditionB_mean), digits = 2)
 
 
 countData <- (subset(countData, select = c(colData$sample)))
@@ -143,7 +93,7 @@ fpk <- apply( countData, 2,
  
 tpm <- apply(fpk, 2, function(x) x / sum(as.numeric(x)) * 10^6)
 
-# deseq
+# deseq pipeline for differential gene expression
 
 ddset <- DESeqDataSetFromMatrix(
   countData = countData,
@@ -166,7 +116,7 @@ pcaplot <- plotPCA(rld, ntop = 500, intgroup = 'group') +
 pcaplot 
 ggsave(file.path(subDir,"pcaplot.pdf"), plot= pcaplot)
 
-#filterinf + volcano su total 
+#filtering + volcano plot 
 res1$expressed <- 'unexpressed'
 res1$expressed[res1[,paste0("average_",condition_A)] >= 1 | res1[,paste0("average_",condition_B)] >= 1] <- 'expressed'
 res1 <- res1[res1$expressed == 'expressed',]
@@ -187,6 +137,7 @@ row.names(res1) <- res1$gene_id
 res1 <- subset(res1, select = -c(gene_id))
 res1 <- subset(res1, select = -c(expressed))
 
+#generating table with up and downregulated count 
 occurences<-table(unlist(res1))
 num_UP <- as.data.frame(occurences["UP"])
 num_DOWN <- as.data.frame(occurences["DOWN"])
@@ -202,7 +153,7 @@ log10padj <- -log10(res1$padj)
 
 write.table(res1, file.path(subDir, paramdir , paste0('geni_',condition_A,condition_B, '.tsv')), sep = '\t')
 
-p <- ggplot(data = as.data.frame(res1), aes(x = log2foldchange, y = log10padj, col= legend)) + 
+volcano_plot <- ggplot(data = as.data.frame(res1), aes(x = log2foldchange, y = log10padj, col= legend)) + 
   geom_point() +
   geom_vline(xintercept=c(- foldchangetreshold, foldchangetreshold), col="black") +
   geom_hline(yintercept= -log10(padjtreshold), col="black") + 
@@ -212,12 +163,12 @@ p <- ggplot(data = as.data.frame(res1), aes(x = log2foldchange, y = log10padj, c
 mycolors <- c("red", "green4", "grey")
 names(mycolors) <- c("DOWN", "UP", "INVARIANT")
 
-volcanoplot <- p + scale_colour_manual(values = mycolors)
+volcanoplot <- volcano_plot + scale_colour_manual(values = mycolors)
 
 ggsave("volcanoplot_total.pdf", path = file.path(subDir, paramdir),width = 7, height = 7)
 
 
-##filtering protein coding + volcano 
+#generation of plot to check %of deregulated non_coding vs coding genes 
 
 filtered_res <- res1[res1$diffexpressed != 'INVARIANT',]
 total <- nrow(filtered_res)
@@ -241,11 +192,10 @@ piechart <- pie(slices,labels=lbls,explode=0.2,
 dev.off()
 
 
-# differentially expressed genes  solo protein coding e solo espressi nel backgorund
+# differentially expressed protein coding genes and heatmap 
 diffexpr <- filtered_res
 diffexprUP <- filtered_res[filtered_res$diffexpressed == 'UP' | filtered_res$diffexpressed == paste0("UP_",condition_A),]
 diffexprDOWN <- filtered_res[filtered_res$diffexpressed == 'DOWN'| filtered_res$diffexpressed == paste0("DOWN_",condition_B),]
-
 
 
 ann <- colData
@@ -257,27 +207,17 @@ heatmap <- pheatmap(tpm[selectedg,], scale = 'row',
                     show_rownames = FALSE, annotation_col = ann)
 ggsave(file.path(subDir, "heatmap.png"), plot=heatmap)
 
-# diffexpr$symbol <- mapIds(org.Hs.eg.db, keys = rownames(diffexpr), keytype = "ENSEMBL", column = "SYMBOL")
-# write.table(diffexpr,  file.path(subDir, paramdir, 'diffexpr.tsv'),sep='\t')
-# diffexpr <- diffexpr[complete.cases(diffexpr), ]
-# 
-# ##up regulated 
-# diffexprUP$symbol <- mapIds(org.Hs.eg.db, keys = rownames(diffexprUP), keytype = "ENSEMBL", column = "SYMBOL")
-# write.table(diffexprUP,  file.path(subDir, paramdir, 'diffexprUP.tsv'),sep='\t')
-# diffexprUP <- diffexprUP[complete.cases(diffexprUP), ]
+
 
 diffexprUPsym <- rownames(diffexprUP)
 writeLines(diffexprUPsym, file.path(subDir, paramdir,'diffexprUPsym.txt'), sep='\n')
 
-##down regulated
-# diffexprDOWN$symbol <- mapIds(org.Hs.eg.db, keys = rownames(diffexprDOWN), keytype = "ENSEMBL", column = "SYMBOL")
-# write.table(diffexprDOWN, file.path(subDir, paramdir, 'diffexprDOWN.tsv'),sep='\t')
-# diffexprDOWN <- diffexprDOWN[complete.cases(diffexprDOWN), ]
+
 
 diffexprDOWNsym <- rownames(diffexprDOWN)
 writeLines(diffexprDOWNsym, file.path(subDir, paramdir,'diffexprDOWNsym.txt'), sep='\n')
 
-##ORA UP
+##ORA on UPregulated
 outputDirectory <- file.path(subDir, paramdir)
 ORAup <- WebGestaltR(enrichMethod="ORA", organism="hsapiens",
                        enrichDatabase="geneontology_Biological_Process", interestGeneFile= file.path(subDir, paramdir,'diffexprUPsym.txt'), 
@@ -287,7 +227,7 @@ ORAup <- WebGestaltR(enrichMethod="ORA", organism="hsapiens",
                        projectName= paste0(condition_A,condition_B,'ORA_UP'))
 
 
-##ORA DOWN
+##ORA on DOWNregulated 
 ORAdown <- WebGestaltR(enrichMethod="ORA", organism="hsapiens",
                        enrichDatabase="geneontology_Biological_Process", interestGeneFile= file.path(subDir, paramdir,'diffexprDOWNsym.txt'), 
                        interestGeneType="ensembl_gene_id", referenceGeneFile = paste0(background), 
